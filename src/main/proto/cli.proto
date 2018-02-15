@@ -22,6 +22,8 @@ import "google/protobuf/wrappers.proto";
 // The greeting service definition.
 service Cli {
   rpc RunCli (CliRequest) returns (stream CliReply) {};
+  rpc RunKillableCli (stream CliRequest) returns (stream CliReply) {
+  };
 }
 
 message CliRequest {

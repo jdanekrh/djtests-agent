@@ -115,7 +115,12 @@ class PythonClient extends Client {
                 }
             });
             u.start();
-            p.waitFor(c_killtime, TimeUnit.SECONDS);
+            try {
+                p.waitFor(c_killtime, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                // client run was cancelled
+                e.printStackTrace();
+            }
             p.destroy();
             boolean exited = p.waitFor(1, TimeUnit.SECONDS);
             if (!exited) {

@@ -179,6 +179,85 @@ class RouteGuideService extends CliGrpc.CliImplBase {
         responseObserver.onCompleted();
     }
 
+    @Override
+    public StreamObserver<CliRequest> runKillableCli(StreamObserver<CliReply> responseObserver) {
+        final Thread[] t = new Thread[1];
+        return new StreamObserver<CliRequest>() {
+            @Override
+            public void onNext(CliRequest request) {
+                t[0] = new Thread(() -> {
+                    ClientListener listener = new StringListener() {
+                        @Override
+                        public void onMessage(Map<String, Object> map) {
+                            String line = serializeMessage(map);
+                            synchronized (responseObserver) {
+                                responseObserver.onNext(CliReply.newBuilder().addLines(line).build());
+                            }
+                        }
+
+                        @Override
+                        public void onMessage(String string) {
+                            synchronized (responseObserver) {
+                                responseObserver.onNext(CliReply.newBuilder().addLines(string).build());
+                            }
+                        }
+
+                        @Override
+                        public void onError(String s) {
+                        }
+                    };
+
+                    List<String> args = new ArrayList<>();
+                    args.add(request.getType());
+                    args.addAll(request.getOptionsList());
+
+                    int status = 1;
+                    switch (request.getCli()) {
+                        case "aac": {
+                            status = app.aac.run(listener, args);
+                            break;
+                        }
+                        case "acc": {
+                            status = app.acc.run(listener, args);
+                            break;
+                        }
+                        case "aoc": {
+                            status = app.aoc.run(listener, args);
+                            break;
+                        }
+                        case "aac5": {
+//                List<String> sargs = args.subList(1, args.size() - 1); // todo
+                            switch (request.getType()) {
+                                case "sender":
+                                    status = app.aac5Sender.runWrapped(request.getWrapperOptions(), listener, args);
+                                    break;
+                                case "receiver":
+                                    status = app.aac5Receiver.runWrapped(request.getWrapperOptions(), listener, args);
+                                    break;
+                                default:
+                                    throw new RuntimeException("Not implemented");
+                            }
+                        }
+                    }
+
+                    responseObserver.onNext(CliReply.newBuilder().setStatus(status).build());
+                    responseObserver.onCompleted();
+                });
+                t[0].start();
+            }
+
+            @Override
+            public void onError(Throwable t) {
+
+            }
+
+            @Override
+            public void onCompleted() {
+                t[0].interrupt();
+            }
+        };
+    }
+
     private String serializeMessage(Map<String, Object> map) {
         return jsonProvider.createObjectBuilder(map).build().toString();
     }
