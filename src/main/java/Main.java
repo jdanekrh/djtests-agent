@@ -1,4 +1,3 @@
-import com.google.protobuf.ProtocolStringList;
 import com.redhat.mqe.ClientListener;
 import com.redhat.mqe.djtests.cli.CliGrpc;
 import com.redhat.mqe.djtests.cli.CliReply;
@@ -7,18 +6,18 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
 import org.apache.felix.framework.Felix;
-import org.apache.felix.framework.util.FelixConstants;
 import org.glassfish.json.JsonProviderImpl;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleException;
 import org.osgi.framework.Constants;
-import org.osgi.framework.ServiceReference;
 
-import javax.json.Json;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 // https://stackoverflow.com/questions/1887809/how-to-start-and-use-apache-felix-from-code
 class Main {
@@ -38,13 +37,11 @@ class Main {
         app.startOsgi();
         app.installClients();
 
-        app.osgi.getBundleContext().installBundle("http://central.maven.org/maven2/org/apache/karaf/jndi/org.apache.karaf.jndi.core/4.1.3/org.apache.karaf.jndi.core-4.1.3.jar");
-
 //        app.aac.run("sender", "--help");
 //        app.aac.run("sender", "--log-msgs=dict", "--address=q");
 //        app.acc.run("sender", "--log-msgs=dict", "--address=q");
 //        app.aoc.run("sender", "--log-msgs=dict", "--address=q");
-//        app.aac5.run("--log-msgs=dict");
+//        app.aac5Sender.run("--log-msgs=dict");
 //        acc.run("sender", "--help");
 //        aoc.run("sender", "--help");
 
@@ -167,10 +164,10 @@ class RouteGuideService extends CliGrpc.CliImplBase {
 //                List<String> sargs = args.subList(1, args.size() - 1); // todo
                 switch (request.getType()) {
                     case "sender":
-                        status = app.aac5Sender.run(listener, args);
+                        status = app.aac5Sender.runWrapped(request.getWrapperOptions(), listener, args);
                         break;
                     case "receiver":
-                        status = app.aac5Receiver.run(listener, args);
+                        status = app.aac5Receiver.runWrapped(request.getWrapperOptions(), listener, args);
                         break;
                     default:
                         throw new RuntimeException("Not implemented");

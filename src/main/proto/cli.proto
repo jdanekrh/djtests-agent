@@ -17,6 +17,8 @@ option java_outer_classname = "CliProto";
 
 package cli;
 
+import "google/protobuf/wrappers.proto";
+
 // The greeting service definition.
 service Cli {
   rpc RunCli (CliRequest) returns (stream CliReply) {};
@@ -26,6 +28,11 @@ message CliRequest {
   string cli = 1;
   string type = 2;
   repeated string options = 3;
+  WrapperOptions wrapperOptions = 4;
+}
+
+message WrapperOptions {
+  google.protobuf.Int32Value c_killtime = 1;
 }
 
 message CliReply {

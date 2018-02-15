@@ -1,4 +1,5 @@
 import com.redhat.mqe.ClientListener;
+import com.redhat.mqe.djtests.cli.WrapperOptions;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -29,7 +30,11 @@ public class Client {
     }
 
     public int run(ClientListener listener, String... args) {
-        Object[] array = new Object[]{listener, args};
+        return runWrapped(null, listener, Arrays.asList(args));
+    }
+
+    public int runWrapped(WrapperOptions wrapperOptions, ClientListener listener, List<String> args) {
+        Object[] array = new Object[]{listener, args.toArray()};
 
         SecurityManager previousManager = System.getSecurityManager();
         try {
@@ -63,15 +68,26 @@ class PythonClient extends Client {
 
     @Override
     public int run(ClientListener listener, String... args) {
+        return runWrapped(null, listener, Arrays.asList(args));
+    }
+
+    public int runWrapped(WrapperOptions wrapperOptions, ClientListener listener, List<String> args) {
+        int c_killtime = 100;
+        if (wrapperOptions != null) {
+            if (wrapperOptions.hasCKilltime()) {
+                c_killtime = wrapperOptions.getCKilltime().getValue();
+            }
+        }
         try {
             List<String> command = new ArrayList<>();
             command.addAll(Arrays.asList("/home/jdanek/.virtualenvs/p2dtests/bin/python2", file));
-            command.addAll(Arrays.asList(args));
+            command.addAll(args);
             ProcessBuilder pb = new ProcessBuilder()
                     .command(command)
                     .directory(Paths.get("/home/jdanek/Work/repos/dtests/dtests/node_data/clients/python").toFile());
             Map<String, String> env = pb.environment();
             env.put("PYTHONUNBUFFERED", "1");
+            System.out.println(pb.command());
             Process p = pb.start();
             Thread t = new Thread(() -> {
                 try (BufferedReader bis = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
@@ -99,17 +115,14 @@ class PythonClient extends Client {
                 }
             });
             u.start();
-            boolean exited = p.waitFor(5, TimeUnit.SECONDS); // todo
+            p.waitFor(c_killtime, TimeUnit.SECONDS);
             p.destroy();
-            exited = p.waitFor(5, TimeUnit.SECONDS);
+            boolean exited = p.waitFor(1, TimeUnit.SECONDS);
             if (!exited) {
                 p.destroyForcibly();
             }
             t.join();
             u.join();
-//            if (!exited) {
-//                return 130;
-//            }
             return p.exitValue();
         } catch (SystemExitingWithStatus e) {
             return e.status;
