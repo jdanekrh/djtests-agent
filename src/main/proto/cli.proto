@@ -17,27 +17,37 @@ option java_outer_classname = "CliProto";
 
 package cli;
 
+import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
 
-// The greeting service definition.
+service Brk {
+    rpc SigKill (google.protobuf.Empty) returns (google.protobuf.Empty) {
+    };
+    rpc SigTerm (google.protobuf.Empty) returns (google.protobuf.Empty) {
+    };
+    rpc Start (google.protobuf.Empty) returns (google.protobuf.Empty) {
+    };
+}
+
 service Cli {
-  rpc RunCli (CliRequest) returns (stream CliReply) {};
-  rpc RunKillableCli (stream CliRequest) returns (stream CliReply) {
-  };
+    rpc RunCli (CliRequest) returns (stream CliReply) {
+    };
+    rpc RunKillableCli (stream CliRequest) returns (stream CliReply) {
+    };
 }
 
 message CliRequest {
-  string cli = 1;
-  string type = 2;
-  repeated string options = 3;
-  WrapperOptions wrapperOptions = 4;
+    string cli = 1;
+    string type = 2;
+    repeated string options = 3;
+    WrapperOptions wrapperOptions = 4;
 }
 
 message WrapperOptions {
-  google.protobuf.Int32Value c_killtime = 1;
+    google.protobuf.Int32Value c_killtime = 1;
 }
 
 message CliReply {
-  int32 status = 1;
-  repeated string lines = 2;
+    int32 status = 1;
+    repeated string lines = 2;
 }
