@@ -78,7 +78,8 @@ dependencies {
     compile files('/home/jdanek/Work/repos/cli-java/cli/target/cli-1.2.2-SNAPSHOT.jar')
 //    compile group: 'org.apache.geronimo.specs', name: 'geronimo-json_1.0_spec', version: '1.0-alpha-1'
 //    compile group: 'org.glassfish', name: 'javax.json', version: '1.1'
-compile group: 'org.glassfish', name: 'javax.json', version: '1.1.2'
+    compile group: 'org.glassfish', name: 'javax.json', version: '1.1.2'
+    compile group: 'com.github.jnr', name: 'jnr-posix', version: '3.0.44'
 
 
     compile group: 'org.apache.felix', name: 'org.apache.felix.framework', version: '5.6.8'
