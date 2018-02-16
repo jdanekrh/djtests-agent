@@ -1,23 +1,27 @@
 import com.redhat.mqe.ClientListener;
-import com.redhat.mqe.djtests.cli.CliGrpc;
-import com.redhat.mqe.djtests.cli.CliReply;
-import com.redhat.mqe.djtests.cli.CliRequest;
+import com.redhat.mqe.djtests.cli.*;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import jnr.posix.POSIX;
+import jnr.posix.POSIXFactory;
 import org.apache.felix.framework.Felix;
 import org.glassfish.json.JsonProviderImpl;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleException;
 import org.osgi.framework.Constants;
 
-import java.io.IOException;
+import java.io.*;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.nio.CharBuffer;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.InvalidParameterException;
+import java.util.*;
+import java.util.regex.MatchResult;
 
 // https://stackoverflow.com/questions/1887809/how-to-start-and-use-apache-felix-from-code
 class Main {
@@ -46,7 +50,10 @@ class Main {
 //        aoc.run("sender", "--help");
 
         int port = 5555;
-        Server server = ServerBuilder.forPort(port).addService(new RouteGuideService(app)).build();
+        Server server = ServerBuilder.forPort(port)
+                .addService(new RouteGuideService(app))
+                .addService(new LogSnapperService())
+                .build();
 
         try {
             server.start();
@@ -116,6 +123,8 @@ class Main {
 }
 
 class RouteGuideService extends CliGrpc.CliImplBase {
+    static final POSIX posix = POSIXFactory.getNativePOSIX();
+
     Main app;
     final JsonProviderImpl jsonProvider = new JsonProviderImpl();
 
@@ -135,6 +144,10 @@ class RouteGuideService extends CliGrpc.CliImplBase {
             @Override
             public void onMessage(String string) {
                 responseObserver.onNext(CliReply.newBuilder().addLines(string).build());
+            }
+
+            @Override
+            public void onStart(Process process) {
             }
 
             @Override
@@ -203,6 +216,23 @@ class RouteGuideService extends CliGrpc.CliImplBase {
                         }
 
                         @Override
+                        public void onStart(Process process) {
+                            try {
+                                final Field field = process.getClass().getDeclaredField("pid");
+                                field.setAccessible(true);
+                                int pid = field.getInt(process);
+                                System.out.println(pid);
+                                synchronized (responseObserver) {
+                                    responseObserver.onNext(CliReply.newBuilder().setCliId(CliID.newBuilder().setPid(pid).build()).build());
+                                }
+                            } catch (IllegalAccessException e) {
+                                e.printStackTrace();
+                            } catch (NoSuchFieldException e) {
+                                e.printStackTrace();
+                            }
+                        }
+
+                        @Override
                         public void onError(String s) {
                         }
                     };
@@ -258,7 +288,139 @@ class RouteGuideService extends CliGrpc.CliImplBase {
         };
     }
 
+    @Override
+    public void waitForConnection(CliID request, StreamObserver<CliStatus> responseObserver) {
+
+    }
+
+    @Override
+    public void kill(CliKillRequest request, StreamObserver<CliStatus> responseObserver) {
+        int pid = request.getCliId().getPid();
+        if (pid == 0) {
+            responseObserver.onError(new InvalidParameterException("Will not kill pid=0"));
+            return;
+        }
+        System.out.println("killing " + pid);
+        posix.kill(request.getCliId().getPid(), request.getSignal());
+        responseObserver.onNext(CliStatus.newBuilder().build());
+        responseObserver.onCompleted();
+    }
+
     private String serializeMessage(Map<String, Object> map) {
         return jsonProvider.createObjectBuilder(map).build().toString();
+    }
+}
+
+class LogSnapperService extends LogSnapperGrpc.LogSnapperImplBase {
+    @Override
+    public void getOffset(OffsetRequest request, StreamObserver<OffsetReply> responseObserver) {
+        Path path = Paths.get(request.getFile());
+        final File file = path.toFile();
+        if (!file.exists()) {
+            fileDoesNotExist(responseObserver);
+            return;
+        }
+        long offset = file.length();
+        responseObserver.onNext(OffsetReply.newBuilder().setOffset(offset).build());
+        responseObserver.onCompleted();
+    }
+
+    void fileDoesNotExist(StreamObserver<?> responseObserver) {
+        responseObserver.onError(Status.fromCode(Status.Code.INVALID_ARGUMENT).withDescription("File does not exist").asException());
+    }
+
+    @Override
+    public void getSnap(SnapRequest request, StreamObserver<SnapReply> responseObserver) {
+        Path path = Paths.get(request.getFile());
+        long begin = request.getBegin();
+        long end = request.getEnd();
+
+        final File file = path.toFile();
+        if (!file.exists()) {
+            fileDoesNotExist(responseObserver);
+            return;
+        }
+
+        long size = computeSize(file, begin, end);
+        CharBuffer b = CharBuffer.allocate((int) size);
+
+
+        try {
+            try (FileReader r = new FileReader(file)) {
+                long skipped = r.skip(begin);
+                if (skipped != begin) {
+                    responseObserver.onError(Status.DATA_LOSS.withDescription("Cannot skip to beginning of snap").asException());
+                    return;
+                }
+                while (size > 0) {
+                    int read = r.read(b);
+                    if (read == -1) {
+                        responseObserver.onError(Status.DATA_LOSS.withDescription("Premature end of stream reached while reading").asException());
+                        return;
+                    }
+                    size -= read;
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        b.flip();
+        String snap = b.toString();
+
+        responseObserver.onNext(SnapReply.newBuilder().setSnap(snap).build());
+        responseObserver.onCompleted();
+    }
+
+    long computeSize(File file, long begin, long end) {
+        long size = end - begin;
+        // todo decide on single special value for end
+        if (end <= 0) {
+            size = file.length() - begin;
+        }
+        return size;
+    }
+
+    @Override
+    public void search(SearchRequest request, StreamObserver<SearchReply> responseObserver) {
+        SnapRequest snapRequest = request.getSnap();
+        List<String> strings = new ArrayList<>(request.getStringsList());
+
+        final Path path = Paths.get(snapRequest.getFile());
+        final File file = path.toFile();
+        final long begin = snapRequest.getBegin();
+        final long end = snapRequest.getEnd();
+
+        if (!file.exists()) {
+            fileDoesNotExist(responseObserver);
+            return;
+        }
+
+        long size = computeSize(file, begin, end);
+
+        try (InputStream is = new FileInputStream(file)) {
+            is.skip(begin);
+            boolean result = findStringsInStream(strings, (int) size, is);
+            responseObserver.onNext(SearchReply.newBuilder().setFound(result).build());
+            responseObserver.onCompleted();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    boolean findStringsInStream(List<String> strings, int size, InputStream is) {
+        Scanner s = new Scanner(is);
+        for (String string : strings) {
+            String result = s.findWithinHorizon(string, size);
+            if (result == null) {
+                return false;
+            }
+            // decrease the horizon for the next call
+            MatchResult match = s.match();
+            size -= match.end();
+        }
+        return true;
     }
 }

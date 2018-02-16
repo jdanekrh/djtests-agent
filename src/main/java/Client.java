@@ -89,6 +89,7 @@ class PythonClient extends Client {
             env.put("PYTHONUNBUFFERED", "1");
             System.out.println(pb.command());
             Process p = pb.start();
+            ((StringListener) listener).onStart(p);
             Thread t = new Thread(() -> {
                 try (BufferedReader bis = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
                     bis.lines().forEach((line) -> {

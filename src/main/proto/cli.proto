@@ -34,6 +34,19 @@ service Cli {
     };
     rpc RunKillableCli (stream CliRequest) returns (stream CliReply) {
     };
+    rpc WaitForConnection (CliID) returns (CliStatus) {
+    };
+    rpc Kill (CliKillRequest) returns (CliStatus) {
+    };
+}
+
+service LogSnapper {
+    rpc GetOffset (OffsetRequest) returns (OffsetReply) {
+    };
+    rpc GetSnap (SnapRequest) returns (SnapReply) {
+    };
+    rpc Search (SearchRequest) returns (SearchReply) {
+    };
 }
 
 message CliRequest {
@@ -50,4 +63,47 @@ message WrapperOptions {
 message CliReply {
     int32 status = 1;
     repeated string lines = 2;
+    CliID cli_id = 3;
+}
+
+message CliID {
+    int32 pid = 1;
+}
+
+message CliStatus {
+    bool running = 1;
+    int32 connection_count = 2;
+}
+
+message CliKillRequest {
+    int32 signal = 1;
+    CliID cli_id = 2;
+}
+
+message OffsetRequest {
+    string file = 1;
+}
+
+message OffsetReply {
+    int64 offset = 1;
+}
+
+message SnapRequest {
+    string file = 1;
+    int64 begin = 2;
+    // when end = 0, snap until the end of the file
+    int64 end = 3;
+}
+
+message SearchRequest {
+    SnapRequest snap = 1;
+    repeated string strings = 2;
+}
+
+message SnapReply {
+    string snap = 1;
+}
+
+message SearchReply {
+    bool found = 1;
 }
