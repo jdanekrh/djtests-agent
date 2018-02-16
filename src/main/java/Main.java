@@ -152,6 +152,7 @@ class RouteGuideService extends CliGrpc.CliImplBase {
 
             @Override
             public void onError(String s) {
+                responseObserver.onNext(CliReply.newBuilder().setStderr(s).build());
             }
         };
 
@@ -234,6 +235,9 @@ class RouteGuideService extends CliGrpc.CliImplBase {
 
                         @Override
                         public void onError(String s) {
+                            synchronized (responseObserver) {
+                                responseObserver.onNext(CliReply.newBuilder().setStderr(s).build());
+                            }
                         }
                     };
 

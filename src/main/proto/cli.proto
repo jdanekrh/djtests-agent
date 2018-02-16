@@ -64,6 +64,7 @@ message CliReply {
     int32 status = 1;
     repeated string lines = 2;
     CliID cli_id = 3;
+    string stderr = 4;
 }
 
 message CliID {
