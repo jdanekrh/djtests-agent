@@ -60,7 +60,7 @@ STRING      :   '"' ~[<"]* '"'
             |   '\'' ~[<']* '\''
             ;
 Name        :   NameStartChar NameChar* ;
-S           :   [ \t\r\n]               -> skip ;
+S           :   [ \t\r\n]               -> channel(HIDDEN) ;
 
 fragment
 HEXDIGIT    :   [a-fA-F0-9] ;
