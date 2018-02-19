@@ -27,6 +27,12 @@ service Brk {
     };
     rpc Start (google.protobuf.Empty) returns (google.protobuf.Empty) {
     };
+
+    // could return diff of the file
+    rpc RestoreFile (RestoreRequest) returns (google.protobuf.Empty) {
+    };
+    rpc PatchFile (PatchRequest) returns (google.protobuf.Empty) {
+    };
 }
 
 service Cli {
@@ -107,4 +113,13 @@ message SnapReply {
 
 message SearchReply {
     bool found = 1;
+}
+
+message PatchRequest {
+    string path = 1;
+    string json = 2;
+}
+
+message RestoreRequest {
+    string path = 1;
 }

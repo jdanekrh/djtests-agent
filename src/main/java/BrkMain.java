@@ -1,17 +1,25 @@
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.Empty;
 import com.redhat.mqe.djtests.cli.BrkGrpc;
+import com.redhat.mqe.djtests.cli.PatchRequest;
+import com.redhat.mqe.djtests.cli.RestoreRequest;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.Map;
 
 public class BrkMain {
     public static void main(String[] args) {
-        final BrkService brkService = new BrkService("/home/jdanek/Downloads/AMQ7/7.1.0/cr2.2/amq-broker-7.1.0/i0/");
+        final Path artemisInstance = Paths.get("/home/jdanek/Downloads/AMQ7/7.1.0/cr2.2/amq-broker-7.1.0/i0/");
+        final BrkService brkService = new BrkService(artemisInstance);
         Server server = ServerBuilder.forPort(6666)
                 .addService(brkService)
                 .build();
@@ -32,17 +40,17 @@ public class BrkMain {
 }
 
 class BrkService extends BrkGrpc.BrkImplBase {
-    private final String artemisInstance;
+    private final Path artemisInstance;
     private Process artemisProcess;
     private Thread artemisThread;
 
-    BrkService(String artemisInstance) {
+    BrkService(Path artemisInstance) {
         this.artemisInstance = artemisInstance;
     }
 
     public void startUp() {
         ProcessBuilder pb = new ProcessBuilder()
-                .directory(new File(artemisInstance))
+                .directory(artemisInstance.toFile())
                 .command("bin/artemis", "run");
         pb.redirectErrorStream(true);
         try {
@@ -99,5 +107,47 @@ class BrkService extends BrkGrpc.BrkImplBase {
         responseObserver.onNext(request);
         responseObserver.onCompleted();
     }
-}
 
+    @Override
+    public void restoreFile(RestoreRequest request, StreamObserver<Empty> responseObserver) {
+        Path path = artemisInstance.resolve(request.getPath());
+        try {
+            Files.copy(path.getParent().resolve("bck").resolve(path.getFileName()), path, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            responseObserver.onError(io.grpc.Status.NOT_FOUND.withDescription("Copying failed").withCause(e).asException());
+            return;
+        }
+        responseObserver.onNext(Empty.newBuilder().build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void patchFile(PatchRequest request, StreamObserver<Empty> responseObserver) {
+        Path path = artemisInstance.resolve(request.getPath());
+        String original = null;
+        try {
+            original = new String(Files.readAllBytes(path));
+        } catch (IOException e) {
+            responseObserver.onError(io.grpc.Status.NOT_FOUND.withCause(e).asException());
+        }
+        Map<String, Object> patch = null;
+        try {
+            patch = new ObjectMapper().readValue(request.getJson(), Map.class);
+        } catch (IOException e) {
+            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT.withCause(e).asException());
+            return;
+        }
+
+        final XmlPatcher patcher = new XmlPatcher();
+        String patched = patcher.patch(path, patch);
+        patcher.printColorDiff(original, patched);
+        try {
+            Files.write(path, patched.getBytes());
+        } catch (IOException e) {
+            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT.withCause(e).asException());
+            return;
+        }
+        responseObserver.onNext(Empty.newBuilder().build());
+        responseObserver.onCompleted();
+    }
+}
