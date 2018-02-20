@@ -1,3 +1,5 @@
+import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.CharStreams;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -172,6 +174,89 @@ public class XMLTest {
                                                         "slow-consumer-policy", "KILL",
                                                         "slow-consumer-check-period", "5"))))));
         xmlPatcher.printColorDiff(original, patched);
+    }
+
+    @Test
+    public void testANTLRPatchAttributes() throws Exception {
+        Path doc = Paths.get("/home/jdanek/Downloads/AMQ7/7.1.0/cr2.2/amq-broker-7.1.0/i0/etc/broker.xml");
+        String original = new String(Files.readAllBytes(doc));
+        final XmlPatcher xmlPatcher = new XmlPatcher();
+        String patched = xmlPatcher.patch(doc,
+                Map.of("configuration",
+                        Map.of("core",
+                                Map.of("addresses",
+                                        Map.of("address",
+                                                List.of(Map.of(
+                                                        "@name", "lalaQ",
+                                                        "anycast",
+                                                        Map.of("queue", List.of(Map.of("@name", "lalaQ"))))))))));
+        xmlPatcher.printColorDiff(original, patched);
+    }
+
+    @Test
+    public void testANTLRPatchAttributesAddQueue() throws Exception {
+        final String original = "<configuration>\n" +
+                "   <core>\n" +
+                "      <addresses>\n" +
+                "         <address name=\"lalaQ\">\n" +
+                "            <anycast>\n" +
+                "               <queue name=\"lalaR\"></queue>\n" +
+                "            </anycast>\n" +
+                "         </address>\n" +
+                "         <address name=\"DLQ\">\n" +
+                "            <anycast>\n" +
+                "               <queue name=\"DLQ\" />\n" +
+                "            </anycast>\n" +
+                "         </address>" +
+                "      </addresses>" +
+                "   </core>\n" +
+                "</configuration>";
+        CharStream is = CharStreams.fromString(original);
+        final XmlPatcher xmlPatcher = new XmlPatcher();
+        String patched = xmlPatcher.patch(is,
+                Map.of("configuration",
+                        Map.of("core",
+                                Map.of("addresses",
+                                        Map.of("address",
+                                                List.of(Map.of(
+                                                        "@name", "lalaQ",
+                                                        "anycast",
+                                                        Map.of("queue", List.of(Map.of("@name", "lalaQ"))))))))));
+        xmlPatcher.printColorDiff(original, patched);
+    }
+
+    @Test
+    public void testGetTagsFromMap() {
+        Map<String, Object> map =
+                Map.of("address",
+                        List.of(Map.of(
+                                "@name", "lalaQ",
+                                "anycast",
+                                Map.of("queue", List.of(Map.of("@name", "lalaQ"))))));
+        XmlPatcher xmlPatcher = new XmlPatcher();
+        List<String> result = xmlPatcher.getTagsFromMap(map);
+
+        Assert.assertEquals(List.of("<address name=\"lalaQ\">"), result);
+    }
+
+    @Test
+    public void testBuildStringList() {
+        Map<String, Object> map =
+                Map.of("address",
+                        List.of(Map.of(
+                                "@name", "lalaQ",
+                                "anycast",
+                                Map.of("queue", List.of(Map.of("@name", "lalaQ"))))));
+        XmlPatcher xmlPatcher = new XmlPatcher();
+        StringBuilder sb = new StringBuilder();
+        xmlPatcher.buildString(sb, map, ">");
+        Assert.assertEquals("\n" +
+                        "><address name=\"lalaQ\">\n" +
+                        ">   <anycast>\n" +
+                        ">      <queue name=\"lalaQ\"></queue>\n" +
+                        ">   </anycast>\n" +
+                        "></address>\n"
+                , sb.toString());
     }
 }
 
