@@ -1,8 +1,8 @@
 import com.redhat.mqe.ClientListener;
 import com.redhat.mqe.djtests.cli.*;
 import io.grpc.Server;
-import io.grpc.ServerBuilder;
 import io.grpc.Status;
+import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import jnr.posix.POSIX;
 import jnr.posix.POSIXFactory;
@@ -50,7 +50,8 @@ class Main {
 //        aoc.run("sender", "--help");
 
         int port = 5555;
-        Server server = ServerBuilder.forPort(port)
+        Server server = NettyServerBuilder.forPort(port)
+                .maxMessageSize(25 * 1024 * 1024)  // 25 MiB should be enough for everyone
                 .addService(new RouteGuideService(app))
                 .addService(new LogSnapperService())
                 .build();

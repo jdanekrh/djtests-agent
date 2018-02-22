@@ -64,6 +64,13 @@ message CliRequest {
 
 message WrapperOptions {
     google.protobuf.Int32Value c_killtime = 1;
+    repeated TemporaryFile temp_file = 2;
+}
+
+message TemporaryFile {
+    // use temporaryFile:// in CliRequest.options to reffer to it
+    int32 id = 1;
+    bytes content = 2;
 }
 
 message CliReply {
