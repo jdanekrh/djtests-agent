@@ -8,14 +8,12 @@ import jnr.posix.POSIX;
 import jnr.posix.POSIXFactory;
 import org.apache.felix.framework.Felix;
 import org.glassfish.json.JsonProviderImpl;
-import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleException;
 import org.osgi.framework.Constants;
 
 import java.io.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.nio.CharBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -34,6 +32,8 @@ class Main {
 
     Client aac5Sender;
     Client aac5Receiver;
+    Client aac1Connector;
+    Client aac1Sender;
 
     public static void main(String[] args) throws BundleException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
         Main app = new Main();
@@ -71,7 +71,7 @@ class Main {
         app.stopOsgi();
     }
 
-    private void installClients() {
+    void installClients() {
         aac = installClient(
                 "file:///home/jdanek/Work/repos/cli-java/cli-qpid-jms/target/cli-qpid-jms-1.2.2-SNAPSHOT-LATEST.jar",
                 "com.redhat.mqe.jms.Main");
@@ -84,6 +84,11 @@ class Main {
 
         aac5Sender = new PythonClient("aac5_sender.py");
         aac5Receiver = new PythonClient("aac5_receiver.py");
+
+        final String file = "cli-qpid-jms/target/cli-qpid-jms-1.2.2-SNAPSHOT-LATEST.jar";
+//        final String file = "cli-qpid-jms/target/cli-qpid-jms-1.2.2-SNAPSHOT-0.26.0.redhat-1.jar";
+        aac1Sender = new JavaClient(file, "");
+        aac1Connector = new JavaClient(file, "");
     }
 
     void startOsgi() {
@@ -100,17 +105,17 @@ class Main {
     }
 
     Client installClient(String location, String main) {
-        try {
-            Bundle b = osgi.getBundleContext().installBundle(location);
-            System.out.println("starting bundle " + b.getLocation());
-            b.start();
-
-            Class c = b.loadClass(main);
-            Method m = c.getMethod("main", ClientListener.class, String[].class);
-            return new Client(m);
-        } catch (BundleException | ClassNotFoundException | NoSuchMethodException e1) {
-            e1.printStackTrace();
-        }
+//        try {
+//            Bundle b = osgi.getBundleContext().installBundle(location);
+//            System.out.println("starting bundle " + b.getLocation());
+//            b.start();
+//
+//            Class c = b.loadClass(main);
+//            Method m = c.getMethod("main", ClientListener.class, String[].class);
+//            return new Client(m);
+//        } catch (BundleException | ClassNotFoundException | NoSuchMethodException e1) {
+//            e1.printStackTrace();
+//        }
         return null;
     }
 
@@ -271,6 +276,18 @@ class RouteGuideService extends CliGrpc.CliImplBase {
                                     break;
                                 default:
                                     throw new RuntimeException("Not implemented");
+                            }
+                        }
+                        case "aac1": {
+                            switch (request.getType()) {
+                                case "sender":
+                                    status = app.aac1Sender.runWrapped(request.getWrapperOptions(), listener, args);
+                                    break;
+                                case "connector":
+                                    status = app.aac1Connector.runWrapped(request.getWrapperOptions(), listener, args);
+                                    break;
+                                default:
+                                    throw new RuntimeException("This client type is not implemented");
                             }
                         }
                     }

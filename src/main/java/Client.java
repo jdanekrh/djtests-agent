@@ -3,6 +3,7 @@ import com.redhat.mqe.djtests.cli.TemporaryFile;
 import com.redhat.mqe.djtests.cli.WrapperOptions;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.InvocationTargetException;
@@ -35,7 +36,7 @@ public class Client {
     }
 
     public int runWrapped(WrapperOptions wrapperOptions, ClientListener listener, List<String> args) {
-        Object[] array = new Object[]{listener, args.toArray()};
+        Object[] array = new Object[]{listener, args.toArray(new String[0])};
 
         SecurityManager previousManager = System.getSecurityManager();
         try {
@@ -59,12 +60,32 @@ public class Client {
     }
 }
 
-class PythonClient extends Client {
-    private final String file;
+class JavaClient extends SubprocessClient {
+    JavaClient(String file, String type) {
+        super(null);
+        directory = Paths.get("/home/jdanek/Work/repos/cli-java").toFile();
+        prefixArgs = Arrays.asList("java", "-jar", file);
+    }
+}
+
+class PythonClient extends SubprocessClient {
+    private String file;
 
     PythonClient(String file) {
         super(null);
         this.file = file;
+
+        directory = Paths.get("/home/jdanek/Work/repos/dtests/dtests/node_data/clients/python").toFile();
+        prefixArgs = Arrays.asList("/home/jdanek/.virtualenvs/p2dtests/bin/python2", file);
+    }
+}
+
+abstract class SubprocessClient extends Client {
+    File directory;
+    List<String> prefixArgs;
+
+    SubprocessClient(Method m) {
+        super(m);
     }
 
     @Override
@@ -101,11 +122,13 @@ class PythonClient extends Client {
                     }).collect(Collectors.toList());
             try {
                 List<String> command = new ArrayList<>();
-                command.addAll(Arrays.asList("/home/jdanek/.virtualenvs/p2dtests/bin/python2", file));
+                command.addAll(prefixArgs);
                 command.addAll(arguments);
+                // dTests tests expect commands will go through shell; the escaping should be part of dTests itself
+//                List<String> shellCommand = Arrays.asList("sh", "-c", String.join(" ", command));
                 ProcessBuilder pb = new ProcessBuilder()
                         .command(command)
-                        .directory(Paths.get("/home/jdanek/Work/repos/dtests/dtests/node_data/clients/python").toFile());
+                        .directory(directory);
                 Map<String, String> env = pb.environment();
                 env.put("PYTHONUNBUFFERED", "1");
                 System.out.println(pb.command());
