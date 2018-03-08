@@ -3,6 +3,7 @@ import com.redhat.mqe.djtests.cli.*;
 import io.grpc.Server;
 import io.grpc.Status;
 import io.grpc.netty.NettyServerBuilder;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import jnr.posix.POSIX;
 import jnr.posix.POSIXFactory;
@@ -12,12 +13,15 @@ import org.osgi.framework.BundleException;
 import org.osgi.framework.Constants;
 
 import java.io.*;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.CharBuffer;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.InvalidParameterException;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.regex.MatchResult;
 
@@ -224,18 +228,10 @@ class RouteGuideService extends CliGrpc.CliImplBase {
 
                         @Override
                         public void onStart(Process process) {
-                            try {
-                                final Field field = process.getClass().getDeclaredField("pid");
-                                field.setAccessible(true);
-                                int pid = field.getInt(process);
-                                System.out.println(pid);
-                                synchronized (responseObserver) {
-                                    responseObserver.onNext(CliReply.newBuilder().setCliId(CliID.newBuilder().setPid(pid).build()).build());
-                                }
-                            } catch (IllegalAccessException e) {
-                                e.printStackTrace();
-                            } catch (NoSuchFieldException e) {
-                                e.printStackTrace();
+                            int pid = ProcessManagement.getPid(process);
+                            System.out.println(pid);
+                            synchronized (responseObserver) {
+                                responseObserver.onNext(CliReply.newBuilder().setCliId(CliID.newBuilder().setPid(pid).build()).build());
                             }
                         }
 
@@ -277,6 +273,7 @@ class RouteGuideService extends CliGrpc.CliImplBase {
                                 default:
                                     throw new RuntimeException("Not implemented");
                             }
+                            break;
                         }
                         case "aac1": {
                             switch (request.getType()) {
@@ -289,6 +286,7 @@ class RouteGuideService extends CliGrpc.CliImplBase {
                                 default:
                                     throw new RuntimeException("This client type is not implemented");
                             }
+                            break;
                         }
                     }
 
@@ -312,7 +310,36 @@ class RouteGuideService extends CliGrpc.CliImplBase {
 
     @Override
     public void waitForConnection(CliID request, StreamObserver<CliStatus> responseObserver) {
+        SS socketStatus = new SS();
 
+        Duration timeout = Duration.of(300, ChronoUnit.SECONDS);  // upper limit on timeout
+
+        Instant whence = Instant.now();
+        while (!((ServerCallStreamObserver) responseObserver).isCancelled() && Duration.between(whence, Instant.now()).compareTo(timeout) < 0) {
+            try {
+                List<SocketInfo> sockets = socketStatus.listSocketsForPid(String.valueOf(request.getPid()));
+//                System.out.println(sockets);
+                if (sockets.stream().allMatch((socket) -> socket.getStatus().equals("ESTABLISHED"))) {
+                    responseObserver.onNext(CliStatus.newBuilder().setRunning(true).setConnected(true).setConnectionCount(sockets.size()).build());
+                    responseObserver.onCompleted();
+                    return;
+                }
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            } catch (NoSuchFileException ignored) {
+                responseObserver.onNext(CliStatus.newBuilder().setRunning(false).build());
+                responseObserver.onCompleted();
+                return;
+            } catch (IOException e) {
+                responseObserver.onError(Status.INTERNAL.withCause(e).withDescription("Reading socket status failed").asException());
+                responseObserver.onCompleted();
+                return;
+            }
+        }
+        responseObserver.onNext(CliStatus.newBuilder().setRunning(true).setConnected(false).build());
     }
 
     @Override

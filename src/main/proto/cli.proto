@@ -21,11 +21,13 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
 
 service Brk {
-    rpc SigKill (google.protobuf.Empty) returns (google.protobuf.Empty) {
+    rpc Kill (BrkKillRequest) returns (google.protobuf.Empty) {
     };
     rpc SigTerm (google.protobuf.Empty) returns (google.protobuf.Empty) {
     };
     rpc Start (google.protobuf.Empty) returns (google.protobuf.Empty) {
+    };
+    rpc Status (google.protobuf.Empty) returns (BrkStatus) {
     };
 
     // could return diff of the file
@@ -87,6 +89,15 @@ message CliID {
 message CliStatus {
     bool running = 1;
     int32 connection_count = 2;
+    bool connected = 3;
+}
+
+message BrkStatus {
+    bool running = 1;
+}
+
+message BrkKillRequest {
+    int32 signal = 1;
 }
 
 message CliKillRequest {

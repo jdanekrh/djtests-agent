@@ -1,11 +1,11 @@
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.Empty;
-import com.redhat.mqe.djtests.cli.BrkGrpc;
-import com.redhat.mqe.djtests.cli.PatchRequest;
-import com.redhat.mqe.djtests.cli.RestoreRequest;
+import com.redhat.mqe.djtests.cli.*;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
+import jnr.posix.POSIX;
+import jnr.posix.POSIXFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -73,26 +73,28 @@ class BrkService extends BrkGrpc.BrkImplBase {
     }
 
     @Override
-    public void sigKill(Empty request, StreamObserver<Empty> responseObserver) {
-        System.out.println("KILLING");
-        artemisProcess.destroyForcibly();
-        try {
-            artemisThread.join();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+    public void kill(BrkKillRequest request, StreamObserver<Empty> responseObserver) {
+        final int signal = request.getSignal();
+        if (signal == 9 || signal == 15) {
+            System.out.println("KILLING");
+            if (signal == 9) {
+                artemisProcess.destroyForcibly();
+            }
+            if (signal == 15) {
+                artemisProcess.destroy();
+            }
+            try {
+                artemisThread.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        } else {
+            System.out.println("SIGNALLING " + signal);
+            POSIX posix = POSIXFactory.getNativePOSIX();
+            int pid = ProcessManagement.getPid(artemisProcess);
+            posix.kill(pid, signal);
         }
         responseObserver.onNext(Empty.newBuilder().build());
-        responseObserver.onCompleted();
-    }
-
-    @Override
-    public void sigTerm(Empty request, StreamObserver<Empty> responseObserver) {
-        artemisProcess.destroy();
-        try {
-            artemisThread.join();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
         responseObserver.onCompleted();
     }
 
@@ -105,6 +107,13 @@ class BrkService extends BrkGrpc.BrkImplBase {
             e.printStackTrace();
         }
         responseObserver.onNext(request);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void status(Empty request, StreamObserver<BrkStatus> responseObserver) {
+        boolean running = artemisProcess.isAlive();
+        responseObserver.onNext(BrkStatus.newBuilder().setRunning(running).build());
         responseObserver.onCompleted();
     }
 
