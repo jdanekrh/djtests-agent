@@ -1,5 +1,8 @@
 import com.redhat.mqe.ClientListener;
 import com.redhat.mqe.djtests.cli.*;
+import conf.Cli;
+import conf.Conf;
+import conf.ConfParser;
 import io.grpc.Server;
 import io.grpc.Status;
 import io.grpc.netty.NettyServerBuilder;
@@ -9,11 +12,13 @@ import jnr.posix.POSIX;
 import jnr.posix.POSIXFactory;
 import org.apache.felix.framework.Felix;
 import org.glassfish.json.JsonProviderImpl;
+import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleException;
 import org.osgi.framework.Constants;
 
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.CharBuffer;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -29,18 +34,7 @@ import java.util.regex.MatchResult;
 class Main {
 
     Felix osgi;
-
-    Client aac;
-    Client acc;
-    Client aoc;
-
-    Client aac5Sender;
-    Client aac5Receiver;
-    Client aac1Connector;
-    Client aac1Sender;
-    RubyClient aacfSender;
-    RubyClient aacfReceiver;
-    RubyClient aacfConnector;
+    Conf cliConf;
 
     public static void main(String[] args) throws BundleException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
         Main app = new Main();
@@ -59,7 +53,7 @@ class Main {
         int port = 5555;
         Server server = NettyServerBuilder.forPort(port)
                 .maxMessageSize(25 * 1024 * 1024)  // 25 MiB should be enough for everyone
-                .addService(new RouteGuideService(app))
+                .addService(new CliService(app))
                 .addService(new LogSnapperService())
                 .build();
 
@@ -79,27 +73,11 @@ class Main {
     }
 
     void installClients() {
-        aac = installClient(
-                "file:///home/jdanek/Work/repos/cli-java/cli-qpid-jms/target/cli-qpid-jms-1.2.2-SNAPSHOT-LATEST.jar",
-                "com.redhat.mqe.jms.Main");
-        acc = installClient(
-                "file:///home/jdanek/Work/repos/cli-java/cli-artemis-jms/target/cli-artemis-jms-1.2.2-SNAPSHOT-LATEST.jar",
-                "com.redhat.mqe.acc.Main");
-        aoc = installClient(
-                "file:///home/jdanek/Work/repos/cli-java/cli-activemq/target/cli-activemq-1.2.2-SNAPSHOT-LATEST.jar",
-                "com.redhat.mqe.aoc.Main");
-
-        aac5Sender = new PythonClient("aac5_sender.py");
-        aac5Receiver = new PythonClient("aac5_receiver.py");
-
-        final String file = "cli-qpid-jms/target/cli-qpid-jms-1.2.2-SNAPSHOT-LATEST.jar";
-//        final String file = "cli-qpid-jms/target/cli-qpid-jms-1.2.2-SNAPSHOT-0.26.0.redhat-1.jar";
-        aac1Sender = new JavaClient(file, "");
-        aac1Connector = new JavaClient(file, "");
-
-        aacfSender = new RubyClient("cli-proton-ruby-sender");
-        aacfReceiver = new RubyClient("cli-proton-ruby-receiver");
-        aacfConnector = new RubyClient("cli-proton-ruby-connector");
+        try {
+            cliConf = ConfParser.parseConf(Paths.get("clis.py"));
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse configuration", e);
+        }
     }
 
     void startOsgi() {
@@ -116,18 +94,17 @@ class Main {
     }
 
     Client installClient(String location, String main) {
-//        try {
-//            Bundle b = osgi.getBundleContext().installBundle(location);
-//            System.out.println("starting bundle " + b.getLocation());
-//            b.start();
-//
-//            Class c = b.loadClass(main);
-//            Method m = c.getMethod("main", ClientListener.class, String[].class);
-//            return new Client(m);
-//        } catch (BundleException | ClassNotFoundException | NoSuchMethodException e1) {
-//            e1.printStackTrace();
-//        }
-        return null;
+        try {
+            Bundle b = osgi.getBundleContext().installBundle(location);
+            System.out.println("starting bundle " + b.getLocation());
+            b.start();
+
+            Class c = b.loadClass(main);
+            Method m = c.getMethod("main", ClientListener.class, String[].class);
+            return new OSGiClient(m);
+        } catch (BundleException | ClassNotFoundException | NoSuchMethodException e) {
+            throw new RuntimeException("Failed to install OSGi cli bundle", e);
+        }
     }
 
     void stopOsgi() {
@@ -139,75 +116,18 @@ class Main {
     }
 }
 
-class RouteGuideService extends CliGrpc.CliImplBase {
+class CliService extends CliGrpc.CliImplBase {
     static final POSIX posix = POSIXFactory.getNativePOSIX();
 
     Main app;
     final JsonProviderImpl jsonProvider = new JsonProviderImpl();
 
-    RouteGuideService(Main app) {
+    CliService(Main app) {
         this.app = app;
     }
 
     @Override
     public void runCli(CliRequest request, StreamObserver<CliReply> responseObserver) {
-        ClientListener listener = new StringListener() {
-            @Override
-            public void onMessage(Map<String, Object> map) {
-                String line = serializeMessage(map);
-                responseObserver.onNext(CliReply.newBuilder().addLines(line).build());
-            }
-
-            @Override
-            public void onMessage(String string) {
-                responseObserver.onNext(CliReply.newBuilder().addLines(string).build());
-            }
-
-            @Override
-            public void onStart(Process process) {
-            }
-
-            @Override
-            public void onError(String s) {
-                responseObserver.onNext(CliReply.newBuilder().setStderr(s).build());
-            }
-        };
-
-        List<String> args = new ArrayList<>();
-        args.add(request.getType());
-        args.addAll(request.getOptionsList());
-
-        int status = 1;
-        switch (request.getCli()) {
-            case "aac": {
-                status = app.aac.run(listener, args);
-                break;
-            }
-            case "acc": {
-                status = app.acc.run(listener, args);
-                break;
-            }
-            case "aoc": {
-                status = app.aoc.run(listener, args);
-                break;
-            }
-            case "aac5": {
-//                List<String> sargs = args.subList(1, args.size() - 1); // todo
-                switch (request.getType()) {
-                    case "sender":
-                        status = app.aac5Sender.runWrapped(request.getWrapperOptions(), listener, args);
-                        break;
-                    case "receiver":
-                        status = app.aac5Receiver.runWrapped(request.getWrapperOptions(), listener, args);
-                        break;
-                    default:
-                        throw new RuntimeException("Not implemented");
-                }
-            }
-        }
-
-        responseObserver.onNext(CliReply.newBuilder().setStatus(status).build());
-        responseObserver.onCompleted();
     }
 
     @Override
@@ -250,74 +170,16 @@ class RouteGuideService extends CliGrpc.CliImplBase {
                         }
                     };
 
-                    List<String> args = new ArrayList<>();
-                    args.add(request.getType());
-                    args.addAll(request.getOptionsList());
-
-                    int status = 1;
-                    switch (request.getCli()) {
-                        case "aac": {
-                            status = app.aac.run(listener, args);
-                            break;
-                        }
-                        case "acc": {
-                            status = app.acc.run(listener, args);
-                            break;
-                        }
-                        case "aoc": {
-                            status = app.aoc.run(listener, args);
-                            break;
-                        }
-                        case "aac5": {
-//                List<String> sargs = args.subList(1, args.size() - 1); // todo
-                            switch (request.getType()) {
-                                case "sender":
-                                    status = app.aac5Sender.runWrapped(request.getWrapperOptions(), listener, args);
-                                    break;
-                                case "receiver":
-                                    status = app.aac5Receiver.runWrapped(request.getWrapperOptions(), listener, args);
-                                    break;
-                                default:
-                                    throw new RuntimeException("Not implemented");
-                            }
-                            break;
-                        }
-                        case "aac1": {
-                            switch (request.getType()) {
-                                case "sender":
-                                    status = app.aac1Sender.runWrapped(request.getWrapperOptions(), listener, args);
-                                    break;
-                                case "connector":
-                                    status = app.aac1Connector.runWrapped(request.getWrapperOptions(), listener, args);
-                                    break;
-                                default:
-                                    throw new RuntimeException("This client type is not implemented");
-                            }
-                            break;
-                        }
-                        case "aacf": {
-                            switch (request.getType()) {
-                                case "sender":
-                                    status = app.aacfSender.runWrapped(request.getWrapperOptions(), listener, args);
-                                    break;
-                                case "receiver":
-                                    status = app.aacfReceiver.runWrapped(request.getWrapperOptions(), listener, args);
-                                    break;
-                                case "connector":
-                                    status = app.aacfConnector.runWrapped(request.getWrapperOptions(), listener, args);
-                                    break;
-                                default:
-                                    throw new RuntimeException("This client type is not implemented");
-                            }
-                            break;
-                        }
-                        default: {
-                            throw new RuntimeException("This client is not implemented");
-                        }
+                    Optional<Cli> cliOpt = app.cliConf.getCli(request.getCli(), request.getType());
+                    if (cliOpt.isPresent()) {
+                        Cli cli = cliOpt.get();
+                        SubprocessClient client = new SubprocessClient(new File(cli.directory), cli.prefix_args);
+                        int status = client.runWrapped(request.getWrapperOptions(), listener, request.getOptionsList());
+                        responseObserver.onNext(CliReply.newBuilder().setStatus(status).build());
+                        responseObserver.onCompleted();
+                        return;
                     }
-
-                    responseObserver.onNext(CliReply.newBuilder().setStatus(status).build());
-                    responseObserver.onCompleted();
+                    responseObserver.onError(Status.NOT_FOUND.withDescription("Cli was not found").asException());
                 });
                 t[0].start();
             }

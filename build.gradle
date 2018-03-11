@@ -95,6 +95,8 @@ dependencies {
 
     antlr "org.antlr:antlr4:4.7"
 
+    compile files('lib/Skylark_deploy.jar')
+
     compile group: 'org.fusesource.jansi', name: 'jansi', version: '1.14'
     compile 'com.google.guava:guava:24.0-jre'
 

@@ -2,24 +2,36 @@ import com.redhat.mqe.ClientListener;
 import com.redhat.mqe.djtests.cli.TemporaryFile;
 import com.redhat.mqe.djtests.cli.WrapperOptions;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.Permission;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-public class Client {
+interface Client {
+//    default int run(ClientListener listener, List<String> args) {
+//        return run(listener, args.toArray(new String[0]));
+//    }
+//
+//    default int run(String... args) {
+//        return run(null, args);
+//    }
+
+    default int run(ClientListener listener, String... args) {
+        return runWrapped(null, listener, Arrays.asList(args));
+    }
+
+    int runWrapped(WrapperOptions wrapperOptions, ClientListener listener, List<String> args);
+}
+
+class OSGiClient implements Client {
     private final Method m;
 
-    Client(Method m) {
+    OSGiClient(Method m) {
         this.m = m;
     }
 
@@ -60,44 +72,13 @@ public class Client {
     }
 }
 
-class JavaClient extends SubprocessClient {
-    JavaClient(String file, String type) {
-        super(null);
-        directory = Paths.get("/home/jdanek/Work/repos/cli-java").toFile();
-        prefixArgs = Arrays.asList("java", "-jar", file);
-    }
-}
-
-class PythonClient extends SubprocessClient {
-    private String file;
-
-    PythonClient(String file) {
-        super(null);
-        this.file = file;
-
-        directory = Paths.get("/home/jdanek/Work/repos/dtests/dtests/node_data/clients/python").toFile();
-        prefixArgs = Arrays.asList("/home/jdanek/.virtualenvs/p2dtests/bin/python2", file);
-    }
-}
-
-class RubyClient extends SubprocessClient {
-    private String file;
-
-    RubyClient(String file) {
-        super(null);
-        this.file = file;
-
-        directory = Paths.get("/home/jdanek/Work/repos/cli-proton-ruby/bin").toFile();
-        prefixArgs = Arrays.asList("ruby", file);
-    }
-}
-
-abstract class SubprocessClient extends Client {
+class SubprocessClient implements Client {
     File directory;
     List<String> prefixArgs;
 
-    SubprocessClient(Method m) {
-        super(m);
+    SubprocessClient(File directory, List<String> prefixArgs) {
+        this.directory = directory;
+        this.prefixArgs = prefixArgs;
     }
 
     @Override
@@ -154,23 +135,21 @@ abstract class SubprocessClient extends Client {
                                 ((StringListener) listener).onMessage(line); // todo
                             }
                         });
-                    } catch (IOException e) {
-                        e.printStackTrace();
+                    } catch (UncheckedIOException | IOException e) {
+                        System.err.println(e.getMessage());
                     }
                 });
                 t.start();
                 Thread u = new Thread(() -> {
                     try (BufferedReader bis2 = new BufferedReader(new InputStreamReader(p.getErrorStream()))) {
                         bis2.lines().forEach((line) -> {
-
-
                             System.out.println(line);
                             if (listener != null) {
                                 listener.onError(line);
                             }
                         });
-                    } catch (IOException e) {
-                        e.printStackTrace();
+                    } catch (UncheckedIOException | IOException e) {
+                        System.err.println(e.getMessage());
                     }
                 });
                 u.start();

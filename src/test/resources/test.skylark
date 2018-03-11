@@ -1,0 +1,16 @@
+# this is actually https://docs.bazel.build/versions/master/skylark/language.html, not Python
+
+cli_python_home = "/home/jdanek/Work/repos/dtests/dtests/node_data/clients/python"
+python_interpreter = "/home/jdanek/.virtualenvs/p2dtests/bin/python2"
+
+def python_cli(file):
+    return new_cli(
+        directory=cli_python_home,
+        prefix_args=[python_interpreter, file],
+    )
+
+conf.cli('aac5', tags=['python:2'],
+         sender=python_cli("aac5_sender.py"),
+         receiver=python_cli("aac5_receiver.py"),
+         connector=python_cli("aac5_connector.py"),
+)
