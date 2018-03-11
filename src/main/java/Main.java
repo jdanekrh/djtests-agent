@@ -38,6 +38,9 @@ class Main {
     Client aac5Receiver;
     Client aac1Connector;
     Client aac1Sender;
+    RubyClient aacfSender;
+    RubyClient aacfReceiver;
+    RubyClient aacfConnector;
 
     public static void main(String[] args) throws BundleException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
         Main app = new Main();
@@ -93,6 +96,10 @@ class Main {
 //        final String file = "cli-qpid-jms/target/cli-qpid-jms-1.2.2-SNAPSHOT-0.26.0.redhat-1.jar";
         aac1Sender = new JavaClient(file, "");
         aac1Connector = new JavaClient(file, "");
+
+        aacfSender = new RubyClient("cli-proton-ruby-sender");
+        aacfReceiver = new RubyClient("cli-proton-ruby-receiver");
+        aacfConnector = new RubyClient("cli-proton-ruby-connector");
     }
 
     void startOsgi() {
@@ -287,6 +294,25 @@ class RouteGuideService extends CliGrpc.CliImplBase {
                                     throw new RuntimeException("This client type is not implemented");
                             }
                             break;
+                        }
+                        case "aacf": {
+                            switch (request.getType()) {
+                                case "sender":
+                                    status = app.aacfSender.runWrapped(request.getWrapperOptions(), listener, args);
+                                    break;
+                                case "receiver":
+                                    status = app.aacfReceiver.runWrapped(request.getWrapperOptions(), listener, args);
+                                    break;
+                                case "connector":
+                                    status = app.aacfConnector.runWrapped(request.getWrapperOptions(), listener, args);
+                                    break;
+                                default:
+                                    throw new RuntimeException("This client type is not implemented");
+                            }
+                            break;
+                        }
+                        default: {
+                            throw new RuntimeException("This client is not implemented");
                         }
                     }
 

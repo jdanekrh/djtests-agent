@@ -80,6 +80,18 @@ class PythonClient extends SubprocessClient {
     }
 }
 
+class RubyClient extends SubprocessClient {
+    private String file;
+
+    RubyClient(String file) {
+        super(null);
+        this.file = file;
+
+        directory = Paths.get("/home/jdanek/Work/repos/cli-proton-ruby/bin").toFile();
+        prefixArgs = Arrays.asList("ruby", file);
+    }
+}
+
 abstract class SubprocessClient extends Client {
     File directory;
     List<String> prefixArgs;
