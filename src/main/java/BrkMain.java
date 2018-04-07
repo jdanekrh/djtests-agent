@@ -84,6 +84,7 @@ class BrkService extends BrkGrpc.BrkImplBase {
                 artemisProcess.destroy();
             }
             try {
+                artemisProcess.waitFor();
                 artemisThread.join();
             } catch (InterruptedException e) {
                 e.printStackTrace();
