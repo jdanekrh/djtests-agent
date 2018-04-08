@@ -1,6 +1,6 @@
 import com.redhat.mqe.ClientListener;
 
-public interface StringListener extends ClientListener{
+public interface StringListener extends ClientListener {
     void onMessage(String string);
 
     void onStart(Process process);

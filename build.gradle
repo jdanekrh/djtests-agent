@@ -11,7 +11,6 @@ buildscript {
 }
 
 plugins {
-    id "com.github.hierynomus.jython" version "0.8.0"
     // https://github.com/grpc/grpc-java/blob/master/examples/build.gradle
     id "com.google.protobuf" version "0.8.4"
 }
@@ -76,18 +75,6 @@ sourceSets {
 }
 
 dependencies {
-//    jython ":colorlog:3.1.0"
-//
-//    jython ":mock:2.0.0"
-//    jython ":six:1.11.0"
-//
-//
-//    jython ":requests:2.18.4"
-//    compile group: 'org.python', name: 'jython-standalone', version: '2.7.1b3'
-    compile files('/home/jdanek/Work/repos/cli-java/cli/target/cli-1.2.2-SNAPSHOT.jar')
-//    compile group: 'org.apache.geronimo.specs', name: 'geronimo-json_1.0_spec', version: '1.0-alpha-1'
-//    compile group: 'org.glassfish', name: 'javax.json', version: '1.1'
-
     compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.9.0'
     compile group: 'org.glassfish', name: 'javax.json', version: '1.1.2'
 
