@@ -254,7 +254,7 @@ class LogSnapperService extends LogSnapperGrpc.LogSnapperImplBase {
         Path path = Paths.get(request.getFile());
         final File file = path.toFile();
         if (!file.exists()) {
-            fileDoesNotExist(responseObserver);
+            fileDoesNotExist(request.getFile(), responseObserver);
             return;
         }
         long offset = file.length();
@@ -262,8 +262,9 @@ class LogSnapperService extends LogSnapperGrpc.LogSnapperImplBase {
         responseObserver.onCompleted();
     }
 
-    void fileDoesNotExist(StreamObserver<?> responseObserver) {
-        responseObserver.onError(Status.fromCode(Status.Code.INVALID_ARGUMENT).withDescription("File does not exist").asException());
+    void fileDoesNotExist(String file, StreamObserver<?> responseObserver) {
+        responseObserver.onError(
+                Status.fromCode(Status.Code.INVALID_ARGUMENT).withDescription("File '" + file + "' does not exist").asException());
     }
 
     @Override
@@ -274,7 +275,7 @@ class LogSnapperService extends LogSnapperGrpc.LogSnapperImplBase {
 
         final File file = path.toFile();
         if (!file.exists()) {
-            fileDoesNotExist(responseObserver);
+            fileDoesNotExist(request.getFile(), responseObserver);
             return;
         }
 
@@ -329,7 +330,7 @@ class LogSnapperService extends LogSnapperGrpc.LogSnapperImplBase {
         final long end = snapRequest.getEnd();
 
         if (!file.exists()) {
-            fileDoesNotExist(responseObserver);
+            fileDoesNotExist(snapRequest.getFile(), responseObserver);
             return;
         }
 
