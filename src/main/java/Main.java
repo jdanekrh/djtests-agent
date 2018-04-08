@@ -54,7 +54,6 @@ class Main {
         Server server = NettyServerBuilder.forPort(port)
                 .maxMessageSize(25 * 1024 * 1024)  // 25 MiB should be enough for everyone
                 .addService(new CliService(app))
-                .addService(new LogSnapperService())
                 .build();
 
         try {

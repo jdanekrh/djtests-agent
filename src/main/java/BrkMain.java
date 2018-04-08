@@ -22,6 +22,7 @@ public class BrkMain {
         final BrkService brkService = new BrkService(artemisInstance);
         Server server = ServerBuilder.forPort(6666)
                 .addService(brkService)
+                .addService(new LogSnapperService())
                 .build();
 
         brkService.startUp();
