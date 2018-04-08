@@ -23,7 +23,7 @@ class SocketInfo {
     int Uuind;
     int socketInode;
     int socketReference;
-    int socketPointer;
+    long socketPointer;
     int connectionState;
 
     String getStatus() {
@@ -97,7 +97,7 @@ public class SS {
             int uuid = Integer.parseInt(m.group(8), 10);
             int socketInode = Integer.parseInt(m.group(10), 10);
             int socketReference = Integer.parseInt(m.group(11), 10);
-            int socketPointer = Integer.parseInt(m.group(12), 16);
+            long socketPointer = Long.parseUnsignedLong(m.group(12), 16);
 
             SocketInfo ss = new SocketInfo();
             ss.localIP = localIP;
