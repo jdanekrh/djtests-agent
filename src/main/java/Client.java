@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 interface Client {
-//    default int run(ClientListener listener, List<String> args) {
+//    default int run(com.redhat.mqe.ClientListener listener, List<String> args) {
 //        return run(listener, args.toArray(new String[0]));
 //    }
 //
@@ -74,10 +74,12 @@ class OSGiClient implements Client {
 
 class SubprocessClient implements Client {
     File directory;
+    Map<String, String> environment;
     List<String> prefixArgs;
 
-    SubprocessClient(File directory, List<String> prefixArgs) {
+    SubprocessClient(File directory, Map<String, String> environment, List<String> prefixArgs) {
         this.directory = directory;
+        this.environment = environment;
         this.prefixArgs = prefixArgs;
     }
 
@@ -123,7 +125,7 @@ class SubprocessClient implements Client {
                         .command(command)
                         .directory(directory);
                 Map<String, String> env = pb.environment();
-                env.put("PYTHONUNBUFFERED", "1");
+                env.putAll(environment);
                 System.out.println(pb.command());
                 Process p = pb.start();
                 ((StringListener) listener).onStart(p);

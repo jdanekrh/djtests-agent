@@ -7,9 +7,11 @@ import com.google.devtools.build.lib.skylarkinterface.SkylarkModuleCategory;
 import com.google.devtools.build.lib.skylarkinterface.SkylarkSignature;
 import com.google.devtools.build.lib.syntax.BuiltinFunction;
 import com.google.devtools.build.lib.syntax.EvalException;
+import com.google.devtools.build.lib.syntax.SkylarkDict;
 import com.google.devtools.build.lib.syntax.SkylarkList;
 
 import java.util.List;
+import java.util.Map;
 
 @SkylarkModule(
         name = "cli_class",
@@ -19,10 +21,12 @@ import java.util.List;
 public class Cli {
     // https://github.com/google/copybara/blob/aa6e6ac49bb3778259f766660b6150aadc9b8081/java/com/google/copybara/authoring/Authoring.java
     public final String directory;
+    public final Map<String, String> environment;
     public final List<String> prefix_args;
 
-    public Cli(String directory, List<String> prefix_args) {
+    public Cli(String directory, List<String> prefix_args, Map<String, String> environment) {
         this.directory = directory;
+        this.environment = environment;
         this.prefix_args = prefix_args;
     }
 
@@ -30,6 +34,7 @@ public class Cli {
     public String toString() {
         return "Cli{" +
                 "directory='" + directory + '\'' +
+                ", environment=" + environment +
                 ", prefix_args=" + prefix_args +
                 '}';
     }
@@ -46,12 +51,17 @@ public class Cli {
                         @Param(name = "directory", type = String.class,
                                 doc = "Directory in which to execute the client"),
                         @Param(name = "prefix_args", type = SkylarkList.class, generic1 = String.class,
-                                doc = "List of arguments to prefix for the execution, has to include at least path to the binary")
+                                doc = "List of arguments to prefix for the execution, has to include at least path to the binary"),
+                        @Param(name = "environment", type = SkylarkDict.class, generic1 = String.class,
+                                doc = "Directory in which to execute the client", positional = false, named = true, defaultValue = "{}"),
                 }, useLocation = true)
         public static final BuiltinFunction NEW_CLI = new BuiltinFunction("new_cli") {
-            public Cli invoke(String directory, SkylarkList<String> prefix_args, Location location)
+            public Cli invoke(String directory,
+                              SkylarkList<String> prefix_args,
+                              SkylarkDict<String, String> environment,
+                              Location location)
                     throws EvalException {
-                return new Cli(directory, prefix_args);
+                return new Cli(directory, prefix_args, environment);
             }
         };
     }

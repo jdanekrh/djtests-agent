@@ -1,6 +1,6 @@
-def new_cli(directory, prefix_args): ...
+def new_cli(directory, prefix_args, environment=None): ...
 
 
-def cli(self, name, tags=[],
+def cli(name, tags=[],
         sender=None, receiver=None, connector=None, **kwargs):
     pass

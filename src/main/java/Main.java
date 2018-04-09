@@ -172,7 +172,7 @@ class CliService extends CliGrpc.CliImplBase {
                     Optional<Cli> cliOpt = app.cliConf.getCli(request.getCli(), request.getType());
                     if (cliOpt.isPresent()) {
                         Cli cli = cliOpt.get();
-                        SubprocessClient client = new SubprocessClient(new File(cli.directory), cli.prefix_args);
+                        SubprocessClient client = new SubprocessClient(new File(cli.directory), cli.environment, cli.prefix_args);
                         int status = client.runWrapped(request.getWrapperOptions(), listener, request.getOptionsList());
                         responseObserver.onNext(CliReply.newBuilder().setStatus(status).build());
                         responseObserver.onCompleted();
