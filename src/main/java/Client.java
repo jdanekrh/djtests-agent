@@ -161,7 +161,6 @@ class SubprocessClient implements Client {
                     // client run was cancelled
                     e.printStackTrace();
                 }
-                p.destroy();
                 boolean exited = false;
                 try {
                     exited = p.waitFor(1, TimeUnit.SECONDS);
@@ -177,6 +176,7 @@ class SubprocessClient implements Client {
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
+                p.destroy();  // ensure we do not leave process resources behind
                 return p.exitValue();
             } catch (SystemExitingWithStatus e) {
                 return e.status;
