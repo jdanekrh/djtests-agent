@@ -164,12 +164,16 @@ class SubprocessClient implements Client {
                 ensureProcessIsDestroyed(p);  // TODO(jdanek) we could sigterm the process, java cannot do graceful
                 t.interrupt();
                 u.interrupt();
-                try {
-                    t.join(1000);  // the threads were interrupted, so the call is not supposed to block
-                    u.join(1000);
-                } catch (InterruptedException e) {
-                    // never seen this happen, but it could be bad if it happens (leaked threads?)
-                    e.printStackTrace();
+                while (true) {  // ensure we always join our threads
+                    try {
+                        t.join();  // the threads were interrupted, so the call is not supposed to block
+                        u.join();
+                        break;
+                    } catch (InterruptedException e) {
+                        // never seen this happen
+                        // we are exiting anyways now, so ok to swallow
+                        e.printStackTrace();
+                    }
                 }
                 try {
                     return p.exitValue();
