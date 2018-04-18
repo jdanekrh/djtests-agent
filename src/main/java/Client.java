@@ -161,24 +161,23 @@ class SubprocessClient implements Client {
                     // client run was cancelled
                     e.printStackTrace();
                 }
-                boolean exited = false;
+                ensureProcessIsDestroyed(p);  // TODO(jdanek) we could sigterm the process, java cannot do graceful
+                t.interrupt();
+                u.interrupt();
                 try {
-                    exited = p.waitFor(1, TimeUnit.SECONDS);
+                    t.join(1000);  // the threads were interrupted, so the call is not supposed to block
+                    u.join(1000);
                 } catch (InterruptedException e) {
+                    // never seen this happen, but it could be bad if it happens (leaked threads?)
                     e.printStackTrace();
                 }
-                if (!exited) {
-                    p.destroyForcibly();
-                }
                 try {
-                    t.join();
-                    u.join();
-                } catch (InterruptedException e) {
+                    return p.exitValue();
+                } catch (IllegalThreadStateException e) {
                     e.printStackTrace();
+                    return 150;  // we were not able to get that process to die
                 }
-                p.destroy();  // ensure we do not leave process resources behind
-                return p.exitValue();
-            } catch (SystemExitingWithStatus e) {
+            } catch (SystemExitingWithStatus e) {  // TODO(jdanek): this is needed only for OSGI, I think
                 return e.status;
             } catch (IOException e) {
                 e.printStackTrace();
@@ -192,6 +191,34 @@ class SubprocessClient implements Client {
                 }
             }
         }
+    }
+
+    /**
+     * First thing this method does is a p.waitFor. This is critical so that we do not destroy a process before the
+     * background thread had a chance to get to the end of its output. TODO(jdanek): this asks for explicit sync
+     *
+     * @return whether the process was successfully destroyed
+     */
+    boolean ensureProcessIsDestroyed(Process p) {
+        for (int i = 0; i < 2; i++) {
+            boolean firstTime = i == 0;
+            boolean exited = false;
+            try {
+                exited = p.waitFor(1, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            if (exited) {
+                p.destroy();  // this is important, otherwise I have hanging output-reading threads later (linux)
+                return true;
+            }
+            if (firstTime) {
+                p.destroy();
+            } else {
+                p.destroyForcibly();
+            }
+        }
+        return false;
     }
 }
 
