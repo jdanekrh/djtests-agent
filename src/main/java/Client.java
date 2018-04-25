@@ -202,27 +202,36 @@ class SubprocessClient implements Client {
 
     private void logLine(Process p, OutputEvent outputEvent, String line) {
         long pid = ProcessManagement.getPid(p);
-        System.out.print(pid);
+        StringBuilder sb = new StringBuilder();
+        sb.append(pid);
         switch (outputEvent) {
             case START: {
-                System.out.print(" + ");
+                sb.append(" + ");
+                sb.append(line);
                 break;
             }
             case EXIT: {
-                System.out.print(" / ");
+                sb.append(" / ");
+                sb.append(line);
                 break;
             }
             case STDOUT: {
-                System.out.print("   ");
+                sb.append("   ");
+                if (line.length() < 1024) {
+                    sb.append(line);
+                } else {
+                    // simplistic, but it does the job
+                    sb.append(line.replaceAll("'[^']{128,}'", "'@@elided@@'"));
+                }
                 break;
             }
             case STDERR: {
-                System.out.print(" ! ");
+                sb.append(" ! ");
+                sb.append(line);
                 break;
             }
-
         }
-        System.out.println(line);
+        System.out.println(sb.toString());
     }
 
     /**
