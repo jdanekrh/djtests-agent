@@ -73,6 +73,8 @@ class OSGiClient implements Client {
 }
 
 class SubprocessClient implements Client {
+    enum OutputEvent {START, STDOUT, STDERR, EXIT}
+
     File directory;
     Map<String, String> environment;
     List<String> prefixArgs;
@@ -126,13 +128,13 @@ class SubprocessClient implements Client {
                         .directory(directory);
                 Map<String, String> env = pb.environment();
                 env.putAll(environment);
-                System.out.println(pb.command());
                 Process p = pb.start();
+                logLine(p, OutputEvent.START, String.join(" ", pb.command()));
                 ((StringListener) listener).onStart(p);
                 Thread t = new Thread(() -> {
                     try (BufferedReader bis = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
                         bis.lines().forEach((line) -> {
-                            System.out.println(line);
+                            logLine(p, OutputEvent.STDOUT, line);
                             if (listener != null) {
                                 ((StringListener) listener).onMessage(line); // todo
                             }
@@ -145,7 +147,7 @@ class SubprocessClient implements Client {
                 Thread u = new Thread(() -> {
                     try (BufferedReader bis2 = new BufferedReader(new InputStreamReader(p.getErrorStream()))) {
                         bis2.lines().forEach((line) -> {
-                            System.out.println(line);
+                            logLine(p, OutputEvent.STDERR, line);
                             if (listener != null) {
                                 listener.onError(line);
                             }
@@ -176,6 +178,7 @@ class SubprocessClient implements Client {
                     }
                 }
                 try {
+                    logLine(p, OutputEvent.EXIT, String.valueOf(p.exitValue()));
                     return p.exitValue();
                 } catch (IllegalThreadStateException e) {
                     e.printStackTrace();
@@ -195,6 +198,31 @@ class SubprocessClient implements Client {
                 }
             }
         }
+    }
+
+    private void logLine(Process p, OutputEvent outputEvent, String line) {
+        long pid = ProcessManagement.getPid(p);
+        System.out.print(pid);
+        switch (outputEvent) {
+            case START: {
+                System.out.print(" + ");
+                break;
+            }
+            case EXIT: {
+                System.out.print(" / ");
+                break;
+            }
+            case STDOUT: {
+                System.out.print("   ");
+                break;
+            }
+            case STDERR: {
+                System.out.print(" ! ");
+                break;
+            }
+
+        }
+        System.out.println(line);
     }
 
     /**

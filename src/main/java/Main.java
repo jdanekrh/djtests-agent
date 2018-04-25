@@ -155,7 +155,6 @@ class CliService extends CliGrpc.CliImplBase {
                         @Override
                         public void onStart(Process process) {
                             int pid = ProcessManagement.getPid(process);
-                            System.out.println(pid);
                             synchronized (responseObserver) {
                                 responseObserver.onNext(CliReply.newBuilder().setCliId(CliID.newBuilder().setPid(pid).build()).build());
                             }
