@@ -13,14 +13,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 interface Client {
-//    default int run(com.redhat.mqe.ClientListener listener, List<String> args) {
-//        return run(listener, args.toArray(new String[0]));
-//    }
-//
-//    default int run(String... args) {
-//        return run(null, args);
-//    }
-
     default int run(ClientListener listener, String... args) {
         return runWrapped(null, listener, Arrays.asList(args));
     }
@@ -121,8 +113,6 @@ class SubprocessClient implements Client {
                 List<String> command = new ArrayList<>();
                 command.addAll(prefixArgs);
                 command.addAll(arguments);
-                // dTests tests expect commands will go through shell; the escaping should be part of dTests itself
-//                List<String> shellCommand = Arrays.asList("sh", "-c", String.join(" ", command));
                 ProcessBuilder pb = new ProcessBuilder()
                         .command(command)
                         .directory(directory);
@@ -163,12 +153,10 @@ class SubprocessClient implements Client {
                     // client run was cancelled
                     e.printStackTrace();
                 }
-                ensureProcessIsDestroyed(p);  // TODO(jdanek) we could sigterm the process, java cannot do graceful
-                t.interrupt();
-                u.interrupt();
-                while (true) {  // ensure we always join our threads
+                ensureProcessIsNotAlive(p);
+                while (true) {  // ensure we always join our threads, so output is not lost
                     try {
-                        t.join();  // the threads were interrupted, so the call is not supposed to block
+                        t.join();
                         u.join();
                         break;
                     } catch (InterruptedException e) {
@@ -177,6 +165,7 @@ class SubprocessClient implements Client {
                         e.printStackTrace();
                     }
                 }
+                p.destroy();  // to close stdin, stdout, stderr file handles
                 try {
                     logLine(p, OutputEvent.EXIT, String.valueOf(p.exitValue()));
                     return p.exitValue();
@@ -184,8 +173,6 @@ class SubprocessClient implements Client {
                     e.printStackTrace();
                     return 150;  // we were not able to get that process to die
                 }
-            } catch (SystemExitingWithStatus e) {  // TODO(jdanek): this is needed only for OSGI, I think
-                return e.status;
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -237,29 +224,21 @@ class SubprocessClient implements Client {
     /**
      * First thing this method does is a p.waitFor. This is critical so that we do not destroy a process before the
      * background thread had a chance to get to the end of its output. TODO(jdanek): this asks for explicit sync
-     *
-     * @return whether the process was successfully destroyed
      */
-    boolean ensureProcessIsDestroyed(Process p) {
-        for (int i = 0; i < 2; i++) {
-            boolean firstTime = i == 0;
-            boolean exited = false;
-            try {
-                exited = p.waitFor(1, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            if (exited) {
-                p.destroy();  // this is important, otherwise I have hanging output-reading threads later (linux)
-                return true;
-            }
-            if (firstTime) {
-                p.destroy();
-            } else {
-                p.destroyForcibly();
-            }
+    void ensureProcessIsNotAlive(Process p) {
+        if (!p.isAlive()) {
+            return;
         }
-        return false;
+        p.destroy();
+        boolean exited = false;
+        try {
+            exited = p.waitFor(1, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        if (!exited) {
+            p.destroyForcibly();
+        }
     }
 }
 
