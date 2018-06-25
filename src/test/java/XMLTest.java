@@ -177,6 +177,30 @@ public class XMLTest {
     }
 
     @Test
+    public void testPatchNewAddressSettings() throws Exception {
+        Path doc = Paths.get("/home/jdanek/Downloads/AMQ7/7.1.0/cr2.2/amq-broker-7.1.0/i0/etc/broker.xml");
+        final XmlPatcher xmlPatcher = new XmlPatcher();
+        String patched = xmlPatcher.patch(doc, Collections.emptyMap());
+        String original = new String(Files.readAllBytes(doc));
+        Assert.assertEquals(original, patched);
+
+        patched = xmlPatcher.patch(doc,
+                Map.of("configuration", Map.of("fuckdat", "ee")));
+        xmlPatcher.printColorDiff(original, patched);
+
+        patched = xmlPatcher.patch(doc,
+                Map.of("configuration",
+                        Map.of("core",
+                                Map.of("address-settings",
+                                        Map.of("address-setting",
+                                                List.of(Map.of("@match", "some_address",
+                                                        "slow-consumer-threshold", "1",
+                                                        "slow-consumer-policy", "KILL",
+                                                        "slow-consumer-check-period", "5")))))));
+        xmlPatcher.printColorDiff(original, patched);
+    }
+
+    @Test
     public void testANTLRPatchAttributes() throws Exception {
         Path doc = Paths.get("/home/jdanek/Downloads/AMQ7/7.1.0/cr2.2/amq-broker-7.1.0/i0/etc/broker.xml");
         String original = new String(Files.readAllBytes(doc));
