@@ -71,9 +71,9 @@ aoc7_jar = "cli-activemq/target/cli-activemq-1.2.2-SNAPSHOT-%s.jar" % aoc7_versi
 conf.cli('aoc7',
          **java_clis(aoc7_jar))
 
-# acce_version = 'LATEST'
-acce_version = '2.4.0.amq-710004-redhat-1'
-acce_jar = "cli-activemq/target/cli-activemq-1.2.2-SNAPSHOT-%s.jar" % aoc7_version
+acce_version = 'LATEST'
+# acce_version = '2.4.0.amq-710004-redhat-1'
+acce_jar = "cli-artemis-jms/target/cli-artemis-jms-1.2.2-SNAPSHOT-%s.jar" % aoc7_version
 conf.cli('acce',
          **java_clis(acce_jar))
 
