@@ -1,4 +1,3 @@
-import conf
 from conf import new_cli
 
 # this is actually https://docs.bazel.build/versions/master/skylark/language.html, not Python
@@ -82,3 +81,34 @@ conf.cli('aacf',
 
 conf.cli('aac3',
          **proton_clis(cpp_cli, "aac3_%s"))
+
+conf.cli('aac0',
+         **proton_clis(cpp_cli, "aac0_%s"))
+
+
+def netcore_cli(type):
+    return new_cli(
+        directory='/home/jdanek/Work/repos/cli-netlite/NetCore%s/bin/Debug/netcoreapp2.0/' % type.capitalize(),
+        prefix_args=['dotnet', 'cli-netlite-core-%s.dll' % type] +
+                    (['--log-lib=TRANSPORT_FRM'] if enable_tracing else []),
+    )
+
+
+conf.cli('aac2',
+         sender=netcore_cli("sender"),
+         receiver=netcore_cli("receiver"),
+         connector=netcore_cli("connector"))
+
+
+def node_cli(type):
+    return new_cli(
+        directory='/home/jdanek/Work/repos/cli-rhea',
+        prefix_args=['node', 'bin/%s-client.js' % type] +
+                    (['--log-lib=TRANSPORT_FRM'] if enable_tracing else []),
+    )
+
+
+conf.cli('aacb',
+         sender=node_cli("sender"),
+         receiver=node_cli("receiver"),
+         connector=node_cli("connector"))
