@@ -12,11 +12,18 @@ ruby_interpreter = 'ruby'
 
 cli_cpp_home = "/home/jdanek/Work/repos/dtests/dtests/node_data/clients/cpp/cmake-build-debug/target/bin"
 
+enable_tracing = []
+
 
 def java_cli(file, kind):
     return new_cli(
         directory=cli_java_home,
-        prefix_args=['java', '-jar', file, kind]
+        prefix_args=['java',
+                     # '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005',
+                     # '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5005',  # debugger
+                     # '-agentlib:jdwp=transport=dt_socket,server=n,address=localhost:5005,suspend=y',
+                     '-jar', file, kind],
+        environment={'PN_TRACE_FRM': '1'} if enable_tracing else {},
     )
 
 
@@ -28,7 +35,11 @@ def python_cli(file):
     return new_cli(
         directory=cli_python_home,
         prefix_args=[python_interpreter, file],
-        environment={'PYTHONUNBUFFERED': '1'},
+        environment={
+            'PYTHONUNBUFFERED': '1',
+            'PYTHONPATH': '.',
+            # 'LANG': 'en_US.ascii',
+        },
     )
 
 
@@ -36,13 +47,16 @@ def ruby_cli(file):
     return new_cli(
         directory=cli_ruby_home,
         prefix_args=[ruby_interpreter, '-e', '$stdout.sync=true;$stderr.sync=true;load($0=ARGV.shift)', file],
+        environment={'PN_TRACE_FRM': '1'} if enable_tracing else {},
     )
 
 
 def cpp_cli(file):
     return new_cli(
         directory=cli_cpp_home,
-        prefix_args=[cli_cpp_home + '/' + file]
+        prefix_args=[cli_cpp_home + '/' + file],
+        environment={'PN_TRACE_FRM': '1'} if enable_tracing else {},
+        # prefix_args=['rr', 'record', cli_cpp_home + '/' + file],
     )
 
 
